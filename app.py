@@ -5,9 +5,9 @@ from flask_migrate import Migrate
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bxnkudycqdbzin:e512de27e679d1bbb7645e5751cbacb2f85882d52e90da36e23c44685e029f43@ec2-34-239-241-121.compute-1.amazonaws.com:5432/df6rjhud6gc305'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://bxnkudycqdbzin:e512de27e679d1bbb7645e5751cbacb2f85882d52e90da36e23c44685e029f43@ec2-34-239-241-121.compute-1.amazonaws.com:5432/df6rjhud6gc305'
 
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:Admin123...@localhost:5432/todo'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:Admin123...@localhost:5432/todo'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -17,6 +17,7 @@ class List(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(), nullable=False)
+    completed = db.Column(db.Boolean())
    
     def __repr__(self):
         return '<User %r>' % self.description
@@ -32,16 +33,47 @@ class List(db.Model):
 
 @app.route('/')
 def index():
-    return render_template('index.html', data=List.query.all())
+    return render_template('index.html', data=List.query.order_by('id').all())
 
 @app.route('/action', methods=['POST'])
 def action():
     value1 = request.get_json()['description']
     
-    descriptions = List(description=value1)
+    descriptions = List(description=value1, completed=False)
     db.session.add(descriptions)
     db.session.commit()
-    return jsonify({'description': descriptions.description})
+    return jsonify({'description': descriptions.description, 'id': descriptions.id})
+
+
+@app.route('/todos/<todo_id>/set-completed', methods=['POST'])
+def set_completed_todo(todo_id):
+  try:
+    completed = request.get_json()['completed']
+    print('completed', completed)
+    Item = List.query.get(todo_id)
+    Item.completed = completed
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+  return redirect(url_for('index'))
+
+
+@app.route('/todos/<todo_id>/set-delete', methods=['DELETE'])
+def set_delete(todo_id):
+  try:
+    Item = List.query.get(todo_id)
+    List.query.filter_by(id=todo_id).delete()
+
+    # db.select.delete(Item)
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+  return jsonify({ 'success': True })
+
 
 if __name__ == '__main__':
    app.run(debug=True)
